@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbwarden-fastapi"
+version = "0.1.0"
+description = "FastAPI integration for DBWarden"
+readme = "README.md"
+requires-python = ">=3.12.7"
+dependencies = ["dbwarden>=0.15.0"]
+
+[project.urls]
+Homepage = "https://github.com/dbwarden-org/dbwarden-fastapi"
+Source = "https://github.com/dbwarden-org/dbwarden-fastapi"
+
+[project.entry-points."dbwarden.plugins"]
+fastapi = "dbwarden_fastapi:setup"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+]
