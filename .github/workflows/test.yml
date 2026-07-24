@@ -27,6 +27,8 @@ jobs:
       - name: Run tests
         run: uv run pytest --cov --cov-branch --cov-report=xml
 
+      # Optional. Without a CODECOV_TOKEN secret this step is skipped rather
+      # than failing the run, so it is safe to leave in place.
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

@@ -4,11 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbwarden-fastapi"
-version = "0.1.0"
+version = "0.1.1"
 description = "FastAPI integration for DBWarden"
 readme = "README.md"
 requires-python = ">=3.12.7"
-dependencies = ["dbwarden>=0.15.0"]
+dependencies = [
+    "dbwarden>=0.16.0",
+    "fastapi>=0.110.0",
+    "pydantic>=2.0",
+    "schemap>=0.5.2",
+]
+
+[project.optional-dependencies]
+# Pool/query observation counters exported by MetricsRouter.
+metrics = ["prometheus-client>=0.21.0"]
+# Distributed migration_lock backend.
+redis = ["redis>=5.0.0"]
+# ClickHouse session dependencies.
+clickhouse = ["clickhouse-connect>=0.7.15"]
 
 [project.urls]
 Homepage = "https://github.com/dbwarden-org/dbwarden-fastapi"
@@ -27,4 +40,10 @@ testpaths = ["tests"]
 dev = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
+    "httpx2",
+    "aiosqlite",
+    "prometheus-client",
+    "clickhouse-connect",
+    "aiohttp",
 ]
