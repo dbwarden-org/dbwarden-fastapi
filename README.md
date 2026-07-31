@@ -1,5 +1,9 @@
 # dbwarden-fastapi
 
+[![Python](https://img.shields.io/badge/Python-3.12.7%2B-3776AB?logo=python&logoColor=white&style=for-the-badge)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/dbwarden-fastapi?logo=pypi&logoColor=white&style=for-the-badge)](https://pypi.org/project/dbwarden-fastapi/)
+[![CI](https://img.shields.io/github/actions/workflow/status/dbwarden-org/dbwarden-fastapi/test.yml?logo=github&logoColor=white&style=for-the-badge)](https://github.com/dbwarden-org/dbwarden-fastapi/actions/workflows/test.yml)
+
 FastAPI integration for [DBWarden](https://github.com/dbwarden-org/dbwarden).
 
 Provides request-scoped sessions, a migration-aware lifespan, and health/status routers.
@@ -15,6 +19,17 @@ Provides request-scoped sessions, a migration-aware lifespan, and health/status 
 | `migration_routes` | `GET /status` and `POST /migrate` |
 
 Also exported directly: `dbwarden_lifespan`, `DBWardenRouter`, `DBWardenHealthRouter`, `MetricsRouter`, `MetricsMiddleware`, `QueryTracingMiddleware`, `PoolMetricsCollector`, `migration_lock`, `sync_migration_lock`, `override_database`, and `migration_state`.
+
+## Automatic schemas
+
+Re-exports [`schemap`](https://pypi.org/project/schemap/)'s `@auto_schema` and `SchemaConfig`, so Pydantic schemas can be generated from your SQLAlchemy models:
+
+```python
+from dbwarden_fastapi import auto_schema
+
+@auto_schema
+class User(Base): ...
+```
 
 ## Usage
 
