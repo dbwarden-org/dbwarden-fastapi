@@ -138,7 +138,7 @@ def DBWardenRouter(
     auth_mode: str = "open",
     api_key: str | None = None,
 ) -> APIRouter:
-    """Create a FastAPI ``APIRouter`` with DBWarden status and migrate endpoints.
+    """Create a FastAPI ``APIRouter`` with dbwarden status and migrate endpoints.
 
     Args:
         auth_mode: ``"open"`` (no auth) or ``"authenticated"`` (API key required).

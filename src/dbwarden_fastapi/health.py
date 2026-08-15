@@ -51,7 +51,7 @@ def DBWardenHealthRouter(
     auth_mode: str = "open",
     api_key: str | None = None,
 ) -> APIRouter:
-    """Create DBWarden FastAPI health router.
+    """Create dbwarden FastAPI health router.
 
     Endpoints:
 

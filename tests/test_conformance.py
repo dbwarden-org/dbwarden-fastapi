@@ -1,9 +1,9 @@
 """Verified (Approved) conformance suite.
 
-These run DBWarden's shared conformance harness so a reviewer can confirm this
+These run dbwarden's shared conformance harness so a reviewer can confirm this
 plugin respects the contract.
 
-Reference: https://dbwarden.emiliano-go.com/plugins/developing/approved-standard/
+Reference: https://docs.dbwarden.org/plugins/developing/approved-standard/
 """
 from __future__ import annotations
 

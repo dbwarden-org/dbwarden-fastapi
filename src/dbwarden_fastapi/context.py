@@ -59,7 +59,7 @@ def check_schema_on_startup(
         message = "; ".join(f"{r.database}: {r.error}" for r in bad)
         raise RuntimeError(f"Startup check failed: {message}")
     if bad:
-        logger.warning("DBWarden startup check failed but fail_fast=False")
+        logger.warning("dbwarden startup check failed but fail_fast=False")
     return results
 
 
@@ -108,7 +108,7 @@ def migrate_on_startup(
     except Exception:
         if fail_fast:
             raise
-        logger.warning("DBWarden migrate_on_startup failed but fail_fast=False")
+        logger.warning("dbwarden migrate_on_startup failed but fail_fast=False")
 
 
 @asynccontextmanager
@@ -162,7 +162,7 @@ async def migration_context(
         outcome = "error"
         if fail_fast:
             raise
-        logger.warning("DBWarden startup context failed but fail_fast=False")
+        logger.warning("dbwarden startup context failed but fail_fast=False")
 
     logger.info(
         f"migration_context mode={mode} outcome={outcome} duration_ms={duration_ms(start)}"

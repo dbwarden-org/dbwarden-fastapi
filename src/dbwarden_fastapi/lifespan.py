@@ -27,7 +27,7 @@ async def dbwarden_lifespan(
     pool_warmup: bool = False,
     pool_warmup_size: int = 3,
 ):
-    """FastAPI lifespan context manager for DBWarden.
+    """FastAPI lifespan context manager for dbwarden.
 
     Handles the full engine lifecycle: optional startup schema
     validation (or auto-migration), readiness gate, seed application,
