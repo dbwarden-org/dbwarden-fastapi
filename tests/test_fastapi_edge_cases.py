@@ -182,7 +182,8 @@ class TestHealthRouterEdgeCases:
 class TestMigrationContextEdgeCases:
     """Test edge cases for migration_context."""
 
-    def test_migration_context_produces_warning_on_failure_without_fail_fast(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_migration_context_produces_warning_on_failure_without_fail_fast(self, monkeypatch):
         """migration_context should warn but not raise when fail_fast=False."""
         monkeypatch.setenv("ENVIRONMENT", "development")
 
@@ -201,20 +202,8 @@ class TestMigrationContextEdgeCases:
         monkeypatch.setattr("dbwarden_fastapi.context.check_startup", fake_check_startup)
 
         from dbwarden_fastapi import migration_context
-        import asyncio
-
-        # This should not raise, just warn
-        async def test():
-            try:
-                async with migration_context(mode="check", fail_fast=False):
-                    pass
-                return True  # Reached without raising
-            except RuntimeError:
-                return False
-
-        result = asyncio.get_event_loop().run_until_complete(test())
-        # Should reach here without raising
-        assert result is True
+        async with migration_context(mode="check", fail_fast=False):
+            pass
 
     @pytest.mark.asyncio
     async def test_migration_context_checks_all_databases(self, monkeypatch):
