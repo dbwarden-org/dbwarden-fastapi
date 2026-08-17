@@ -234,6 +234,7 @@ class TestMetricsRouter:
         refresher = MetricsRefresher(interval=60)
         app.state.dbwarden_metrics_refresher = refresher
         app.include_router(MetricsRouter())
+        monkeypatch.setattr("dbwarden_fastapi.metrics.time.monotonic", lambda: 1.0)
         monkeypatch.setattr("dbwarden_fastapi.metrics.resolved_databases", lambda all_databases: ["primary"])
         monkeypatch.setattr("dbwarden_fastapi.runtime.compute_pending_migrations", lambda name: 2)
         response = TestClient(app).get("/metrics")

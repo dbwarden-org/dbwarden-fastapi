@@ -77,17 +77,17 @@ class MetricsRefresher:
         if interval <= 0:
             raise ValueError("metrics_refresh_interval must be greater than zero")
         self.interval = interval
-        self.last_refresh = 0.0
+        self.last_refresh: float | None = None
         self._task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
 
     async def refresh_if_stale(self) -> None:
-        if time.monotonic() - self.last_refresh >= self.interval:
+        if self.last_refresh is None or time.monotonic() - self.last_refresh >= self.interval:
             await self.refresh()
 
     async def refresh(self) -> None:
         async with self._lock:
-            if time.monotonic() - self.last_refresh < self.interval:
+            if self.last_refresh is not None and time.monotonic() - self.last_refresh < self.interval:
                 return
             try:
                 databases = resolved_databases(all_databases=True)
