@@ -21,7 +21,7 @@ from dbwarden_fastapi.routes import DBWardenRouter
 from dbwarden_fastapi.session import get_session
 from dbwarden_fastapi.testing import migration_state, override_database
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 # The dbwarden plugin contract this package targets. Core refuses to load a
 # plugin declaring a version it does not provide, so a mismatched pairing fails

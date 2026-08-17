@@ -1,9 +1,28 @@
 from __future__ import annotations
 
+import contextvars
+import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from dbwarden.metrics import metrics_enabled
+
+
+@dataclass
+class _QueryStats:
+    query_count: int = 0
+    total_query_time: float = 0.0
+    slowest_query_time: float = 0.0
+    slow_queries: int = 0
+    slow_query_threshold_ms: int = 100
+
+
+_query_stats: contextvars.ContextVar[_QueryStats | None] = contextvars.ContextVar(
+    "dbwarden_query_stats", default=None
+)
+_tracing_events_registered = False
+_tracing_events_lock = threading.Lock()
 
 
 class QueryTracingMiddleware:
@@ -21,28 +40,26 @@ class QueryTracingMiddleware:
         import logging
 
         logger = logging.getLogger("dbwarden.tracing")
-        start = time.time()
-        query_count = 0
-        total_query_time = 0.0
-        slowest_query_time = 0.0
-        slow_queries = 0
-
-        _patch_engine_for_tracing(query_count, total_query_time, slowest_query_time, slow_queries, self.slow_query_threshold_ms)
+        _register_tracing_events()
+        start = time.monotonic()
+        stats = _QueryStats(slow_query_threshold_ms=self.slow_query_threshold_ms)
+        stats_token = _query_stats.set(stats)
 
         try:
             await self.app(scope, receive, send)
         finally:
-            duration = time.time() - start
+            _query_stats.reset(stats_token)
+            duration = time.monotonic() - start
             extras: dict[str, Any] = {
                 "path": scope.get("path", "/"),
                 "method": scope.get("method", ""),
                 "request_duration_ms": round(duration * 1000, 2),
-                "query_count": query_count,
-                "total_query_time_ms": round(total_query_time * 1000, 2),
-                "slowest_query_time_ms": round(slowest_query_time * 1000, 2),
-                "slow_queries": slow_queries,
+                "query_count": stats.query_count,
+                "total_query_time_ms": round(stats.total_query_time * 1000, 2),
+                "slowest_query_time_ms": round(stats.slowest_query_time * 1000, 2),
+                "slow_queries": stats.slow_queries,
             }
-            if slow_queries > 0:
+            if stats.slow_queries > 0:
                 logger.warning("Slow queries detected", extra=extras)
             else:
                 logger.info("Request tracing", extra=extras)
@@ -82,33 +99,47 @@ class PoolMetricsCollector:
         return metrics
 
 
-def _patch_engine_for_tracing(qc, tqt, sqt, sq, threshold_ms):
-    import sqlalchemy as sa
+def _register_tracing_events() -> None:
+    """Register process-wide SQLAlchemy listeners once; request state is contextual."""
+    global _tracing_events_registered
+    if _tracing_events_registered:
+        return
 
-    original_connect = sa.engine.Engine.connect
+    with _tracing_events_lock:
+        if _tracing_events_registered:
+            return
 
-    def traced_connect(self, *args, **kwargs):
-        connection = original_connect(self, *args, **kwargs)
-        original_conn_execute = connection.execute
+        from sqlalchemy import event
+        from sqlalchemy.engine import Engine
 
-        def traced_conn_execute(statement, *parameters, **kwargs):
-            nonlocal qc, tqt, sqt, sq
-            qc += 1
-            start = time.time()
-            try:
-                return original_conn_execute(statement, *parameters, **kwargs)
-            finally:
-                elapsed = time.time() - start
-                tqt += elapsed
-                if elapsed > sqt:
-                    sqt = elapsed
-                if elapsed * 1000 > threshold_ms:
-                    sq += 1
+        @event.listens_for(Engine, "before_cursor_execute")
+        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            if _query_stats.get() is not None:
+                context._dbwarden_query_start = time.monotonic()
 
-        connection.execute = traced_conn_execute
-        return connection
+        @event.listens_for(Engine, "after_cursor_execute")
+        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            _record_query(context)
 
-    sa.engine.Engine.connect = traced_connect
+        @event.listens_for(Engine, "handle_error")
+        def handle_error(exception_context):
+            _record_query(exception_context.execution_context)
+
+        _tracing_events_registered = True
+
+
+def _record_query(context: Any) -> None:
+    stats = _query_stats.get()
+    start = getattr(context, "_dbwarden_query_start", None)
+    if stats is None or start is None:
+        return
+
+    elapsed = time.monotonic() - start
+    stats.query_count += 1
+    stats.total_query_time += elapsed
+    stats.slowest_query_time = max(stats.slowest_query_time, elapsed)
+    if elapsed * 1000 > stats.slow_query_threshold_ms:
+        stats.slow_queries += 1
 
 
 __all__ = [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hmac
 from enum import Enum
 from typing import Any
 
@@ -110,9 +111,9 @@ def _compute_migration_status(db_name: str) -> DatabaseStatus:
         with get_db_connection(db_name) as conn:
             conn.execute(__import__("sqlalchemy").text("SELECT 1"))
         connected = True
-    except Exception as exc:
+    except Exception:
         connected = False
-        error = str(exc)
+        error = "Database connection failed"
 
     if not connected:
         status = "error"
@@ -143,7 +144,7 @@ def DBWardenRouter(
     Args:
         auth_mode: ``"open"`` (no auth) or ``"authenticated"`` (API key required).
                    Can also be set via the ``DBWARDEN_MIGRATE_AUTH`` env var.
-        api_key: Optional API key for authenticated mode.
+        api_key: Required API key for authenticated mode.
 
     Endpoints:
 
@@ -152,6 +153,10 @@ def DBWardenRouter(
     """
     router = APIRouter()
     mode = os.environ.get("DBWARDEN_MIGRATE_AUTH", auth_mode)
+    if mode not in _MigrateAuthMode._value2member_map_:
+        raise ValueError("auth_mode must be 'open' or 'authenticated'")
+    if mode == _MigrateAuthMode.AUTHENTICATED.value and not api_key:
+        raise ValueError("api_key must be configured when auth_mode is 'authenticated'")
 
     # Shared auth dependency -------------------------------------------------
     header_name = "X-API-Key"
@@ -162,7 +167,7 @@ def DBWardenRouter(
             return
         if not key:
             raise HTTPException(status_code=401, detail="API key required")
-        if api_key and key != api_key:
+        if not hmac.compare_digest(key, api_key):
             raise HTTPException(status_code=403, detail="Invalid API key")
 
     # GET /status ------------------------------------------------------------
@@ -200,12 +205,12 @@ def DBWardenRouter(
                 all_databases=target_db is None,
                 dry_run=body.dry_run,
             )
-        except Exception as exc:
+        except Exception:
             return JSONResponse(
                 status_code=500,
                 content=MigrateResponse(
                     success=False,
-                    message=str(exc),
+                    message="Migration failed",
                     database=target_db,
                 ).model_dump(),
             )

@@ -6,6 +6,7 @@ the response models as unresolvable forward references.
 """
 
 import os
+import hmac
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -16,6 +17,7 @@ from dbwarden.config import get_multi_db_config
 from dbwarden.repositories import check_lock
 
 from dbwarden_fastapi.health import (
+    HealthAuthMode,
     HealthResponse,
     LivenessResponse,
     ReadinessResponse,
@@ -41,13 +43,17 @@ from dbwarden_fastapi.runtime import (
 def health_routes(*, auth_mode: str = "open", api_key: str | None = None):
     router = APIRouter()
     mode = os.environ.get("DBWARDEN_HEALTH_AUTH", auth_mode)
+    if mode not in HealthAuthMode._value2member_map_:
+        raise ValueError("auth_mode must be 'open' or 'authenticated'")
+    if mode == HealthAuthMode.AUTHENTICATED.value and not api_key:
+        raise ValueError("api_key must be configured when auth_mode is 'authenticated'")
 
     async def require_auth(key: str | None = Depends(APIKeyHeader(name="X-API-Key", auto_error=False))) -> None:
         if mode == "open":
             return
         if not key:
             raise HTTPException(status_code=401, detail="API key required")
-        if api_key and key != api_key:
+        if not hmac.compare_digest(key, api_key):
             raise HTTPException(status_code=403, detail="Invalid API key")
 
     @router.get("/", response_model=HealthResponse)
@@ -88,6 +94,10 @@ def migration_routes(*, auth_mode: str = "open", api_key: str | None = None):
 
     router = APIRouter()
     mode = os.environ.get("DBWARDEN_MIGRATE_AUTH", auth_mode)
+    if mode not in {"open", "authenticated"}:
+        raise ValueError("auth_mode must be 'open' or 'authenticated'")
+    if mode == "authenticated" and not api_key:
+        raise ValueError("api_key must be configured when auth_mode is 'authenticated'")
     key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
     async def require_auth(key: str | None = Depends(key_header)) -> None:
@@ -95,7 +105,7 @@ def migration_routes(*, auth_mode: str = "open", api_key: str | None = None):
             return
         if not key:
             raise HTTPException(status_code=401, detail="API key required")
-        if api_key and key != api_key:
+        if not hmac.compare_digest(key, api_key):
             raise HTTPException(status_code=403, detail="Invalid API key")
 
     def compute_status(db_name: str) -> DatabaseStatus:
@@ -112,9 +122,9 @@ def migration_routes(*, auth_mode: str = "open", api_key: str | None = None):
 
             with get_db_connection(db_name) as conn:
                 conn.execute(text("SELECT 1"))
-        except Exception as exc:
+        except Exception:
             connected = False
-            error = str(exc)
+            error = "Database connection failed"
         status = "error" if not connected else "degraded" if pending > 0 or pending_seeds > 0 else "ok"
         return DatabaseStatus(
             database=db_name,
@@ -146,10 +156,10 @@ def migration_routes(*, auth_mode: str = "open", api_key: str | None = None):
                 database=target_db,
                 dry_run=body.dry_run,
             )
-        except Exception as exc:
+        except Exception:
             return JSONResponse(
                 status_code=500,
-                content=MigrateResponse(success=False, message=str(exc), database=target_db).model_dump(),
+                content=MigrateResponse(success=False, message="Migration failed", database=target_db).model_dump(),
             )
         action = "Dry-run completed" if body.dry_run else "Migration completed"
         return JSONResponse(content=MigrateResponse(success=True, message=action, database=target_db).model_dump())

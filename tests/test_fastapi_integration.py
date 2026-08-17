@@ -180,3 +180,9 @@ class TestHealthRouter:
         assert client.get("/health/liveness").status_code == 401
         assert client.get("/health/liveness", headers={"X-API-Key": "wrong"}).status_code == 403
         assert client.get("/health/liveness", headers={"X-API-Key": "secret"}).status_code == 200
+
+    def test_authenticated_health_requires_api_key_configuration(self):
+        from dbwarden_fastapi import DBWardenHealthRouter
+
+        with pytest.raises(ValueError, match="api_key must be configured"):
+            DBWardenHealthRouter(auth_mode="authenticated")

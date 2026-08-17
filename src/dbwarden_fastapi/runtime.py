@@ -26,7 +26,7 @@ URL_CREDENTIAL_RE = re.compile(r"://[^:]+:[^@]+@")
 def _sanitize_error(error: str, include_details: bool = False) -> str:
     """Strip sensitive data from error messages."""
     if not error or not include_details:
-        return "Internal error" if include_details else ""
+        return "Database connection failed"
     
     # Remove credential-like patterns
     error = CREDENTIAL_PATTERNS.sub("[REDACTED]", error)

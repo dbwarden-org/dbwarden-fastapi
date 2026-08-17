@@ -297,3 +297,14 @@ class TestMetricsEdgeCases:
         response = client.get("/metrics")
         assert response.status_code == 200
         assert response.text.strip().startswith("# Metrics disabled")
+
+
+class TestQueryTracingMiddleware:
+    def test_tracing_uses_sqlalchemy_events_without_monkeypatching_engine(self):
+        from sqlalchemy.engine import Engine
+        from dbwarden_fastapi.observation import _register_tracing_events
+
+        original_connect = Engine.connect
+        _register_tracing_events()
+
+        assert Engine.connect is original_connect

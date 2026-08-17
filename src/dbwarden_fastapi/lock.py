@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import secrets
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncGenerator, Generator
+
+
+_RELEASE_LOCK_SCRIPT = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
 
 
 @asynccontextmanager
@@ -37,20 +46,25 @@ async def migration_lock(
 
     logger = get_logger()
 
-    acquired = await redis_client.setnx(key, "1")
+    if ttl <= 0:
+        raise ValueError("ttl must be greater than zero")
+
+    token = secrets.token_urlsafe(32)
+    acquired = await redis_client.set(key, token, nx=True, ex=ttl)
     if not acquired:
         raise LockError(
             f"Migration lock is already held (key='{key}'). "
             "Another migration process may be running."
         )
 
-    await redis_client.expire(key, ttl)
     logger.info(f"Redis migration lock acquired (key='{key}', ttl={ttl}s)")
 
     try:
         yield
     finally:
-        await redis_client.delete(key)
+        # A lock may expire and be acquired by another process before cleanup.
+        # Delete only when this context still owns the generated token.
+        await redis_client.eval(_RELEASE_LOCK_SCRIPT, 1, key, token)
         logger.info(f"Redis migration lock released (key='{key}')")
 
 
@@ -85,18 +99,21 @@ def sync_migration_lock(
 
     logger = get_logger()
 
-    acquired = redis_client.setnx(key, "1")
+    if ttl <= 0:
+        raise ValueError("ttl must be greater than zero")
+
+    token = secrets.token_urlsafe(32)
+    acquired = redis_client.set(key, token, nx=True, ex=ttl)
     if not acquired:
         raise LockError(
             f"Migration lock is already held (key='{key}'). "
             "Another migration process may be running."
         )
 
-    redis_client.expire(key, ttl)
     logger.info(f"Redis migration lock acquired (key='{key}', ttl={ttl}s)")
 
     try:
         yield
     finally:
-        redis_client.delete(key)
+        redis_client.eval(_RELEASE_LOCK_SCRIPT, 1, key, token)
         logger.info(f"Redis migration lock released (key='{key}')")

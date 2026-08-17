@@ -17,13 +17,17 @@ class TestMigrationLock:
         from dbwarden_fastapi.lock import migration_lock
 
         redis = AsyncMock()
-        redis.setnx.return_value = True
+        redis.set.return_value = True
 
         async with migration_lock(redis, key="test_lock", ttl=30):
-            redis.setnx.assert_awaited_once_with("test_lock", "1")
-            redis.expire.assert_awaited_once_with("test_lock", 30)
+            redis.set.assert_awaited_once()
+            args, kwargs = redis.set.await_args
+            assert args[0] == "test_lock"
+            assert kwargs == {"nx": True, "ex": 30}
 
-        redis.delete.assert_awaited_once_with("test_lock")
+        redis.eval.assert_awaited_once()
+        args = redis.eval.await_args.args
+        assert args[1:3] == (1, "test_lock")
 
     @pytest.mark.asyncio
     async def test_async_lock_already_held(self):
@@ -31,38 +35,64 @@ class TestMigrationLock:
         from dbwarden.exceptions import LockError
 
         redis = AsyncMock()
-        redis.setnx.return_value = False
+        redis.set.return_value = False
 
         with pytest.raises(LockError, match="already held"):
             async with migration_lock(redis, key="test_lock"):
                 pass
 
-        redis.delete.assert_not_awaited()
+        redis.eval.assert_not_awaited()
 
     def test_sync_lock_acquire_and_release(self):
         from dbwarden_fastapi.lock import sync_migration_lock
 
         redis = MagicMock()
-        redis.setnx.return_value = True
+        redis.set.return_value = True
 
         with sync_migration_lock(redis, key="test_lock", ttl=30):
-            redis.setnx.assert_called_once_with("test_lock", "1")
-            redis.expire.assert_called_once_with("test_lock", 30)
+            redis.set.assert_called_once()
+            args, kwargs = redis.set.call_args
+            assert args[0] == "test_lock"
+            assert kwargs == {"nx": True, "ex": 30}
 
-        redis.delete.assert_called_once_with("test_lock")
+        redis.eval.assert_called_once()
+        assert redis.eval.call_args.args[1:3] == (1, "test_lock")
 
     def test_sync_lock_already_held(self):
         from dbwarden_fastapi.lock import sync_migration_lock
         from dbwarden.exceptions import LockError
 
         redis = MagicMock()
-        redis.setnx.return_value = False
+        redis.set.return_value = False
 
         with pytest.raises(LockError, match="already held"):
             with sync_migration_lock(redis, key="test_lock"):
                 pass
 
-        redis.delete.assert_not_called()
+        redis.eval.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_async_release_uses_the_acquisition_token(self):
+        from dbwarden_fastapi.lock import migration_lock
+
+        redis = AsyncMock()
+        redis.set.return_value = True
+
+        async with migration_lock(redis, key="test_lock"):
+            pass
+
+        assert redis.eval.await_args.args[3] == redis.set.await_args.args[1]
+
+    def test_sync_release_uses_the_acquisition_token(self):
+        from dbwarden_fastapi.lock import sync_migration_lock
+
+        redis = MagicMock()
+        redis.set.return_value = True
+
+        with sync_migration_lock(redis, key="test_lock"):
+            pass
+
+        assert redis.eval.call_args.args[3] == redis.set.call_args.args[1]
 
 
 class TestStatusEndpoint:
@@ -154,6 +184,12 @@ class TestStatusEndpoint:
         # Correct API key -> 200
         response = client.get("/dbwarden/status", headers={"X-API-Key": "secret"})
         assert response.status_code == 200
+
+    def test_authenticated_status_requires_api_key_configuration(self):
+        from dbwarden_fastapi.routes import DBWardenRouter
+
+        with pytest.raises(ValueError, match="api_key must be configured"):
+            DBWardenRouter(auth_mode="authenticated")
 
 
 class TestMigrateEndpoint:
@@ -279,6 +315,7 @@ class TestMigrateEndpoint:
         assert response.status_code == 500
         data = response.json()
         assert data["success"] is False
+        assert data["message"] == "Migration failed"
 
     def test_migrate_with_dry_run(self, monkeypatch):
         app = FastAPI()

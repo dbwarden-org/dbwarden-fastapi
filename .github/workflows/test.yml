@@ -1,5 +1,8 @@
 name: tests
 
+permissions:
+  contents: read
+
 on: [push, pull_request]
 
 concurrency:
@@ -14,10 +17,10 @@ jobs:
         python-version: ["3.12.7", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.6.0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -30,7 +33,7 @@ jobs:
       # Optional. Without a CODECOV_TOKEN secret this step is skipped rather
       # than failing the run, so it is safe to leave in place.
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@04b047e8bb82a0c002c8312c1c880fbc6a999d45 # v5.5.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

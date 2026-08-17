@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import hmac
 from enum import Enum
 from typing import Callable
 
@@ -64,13 +65,17 @@ def DBWardenHealthRouter(
     Args:
         auth_mode: "open" (no auth) or "authenticated" (API key required).
           Can also be set via ``DBWARDEN_HEALTH_AUTH`` env var.
-        api_key: Optional API key for authenticated mode.
+        api_key: Required API key for authenticated mode.
 
     For production, set ``auth_mode="authenticated"`` or
     ``DBWARDEN_HEALTH_AUTH=authenticated``.
     """
     router = APIRouter()
     mode = os.environ.get("DBWARDEN_HEALTH_AUTH", auth_mode)
+    if mode not in HealthAuthMode._value2member_map_:
+        raise ValueError("auth_mode must be 'open' or 'authenticated'")
+    if mode == HealthAuthMode.AUTHENTICATED.value and not api_key:
+        raise ValueError("api_key must be configured when auth_mode is 'authenticated'")
     
     if mode == "open":
         @router.get("/", response_model=HealthResponse)
@@ -111,7 +116,7 @@ def DBWardenHealthRouter(
         async def require_auth(key: str = Depends(key_header)) -> None:
             if not key:
                 raise HTTPException(status_code=401, detail="API key required")
-            if api_key and key != api_key:
+            if not hmac.compare_digest(key, api_key):
                 raise HTTPException(status_code=403, detail="Invalid API key")
 
         @router.get("/", response_model=HealthResponse)
