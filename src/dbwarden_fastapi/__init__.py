@@ -12,16 +12,17 @@ from dbwarden_fastapi.context import (
 )
 from dbwarden_fastapi.engines import dispose_engines
 from dbwarden_fastapi.health import DBWardenHealthRouter
-from dbwarden_fastapi.lifespan import dbwarden_lifespan
+from dbwarden_fastapi.lifespan import dbwarden_lifespan, instrument_app
 from dbwarden_fastapi.lock import migration_lock, sync_migration_lock
-from dbwarden_fastapi.metrics import MetricsMiddleware, MetricsRouter
+from dbwarden_fastapi.metrics import MetricsMiddleware, MetricsRefresher, MetricsRouter
 from dbwarden_fastapi.observation import PoolMetricsCollector, QueryTracingMiddleware
 from dbwarden_fastapi.routers import health_routes, migration_routes
 from dbwarden_fastapi.routes import DBWardenRouter
-from dbwarden_fastapi.session import get_session
+from dbwarden_fastapi.session import get_session, get_tenant_session
+from dbwarden_fastapi.tenancy import TenantResolver, resolve_tenant
 from dbwarden_fastapi.testing import migration_state, override_database
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 # The dbwarden plugin contract this package targets. Core refuses to load a
 # plugin declaring a version it does not provide, so a mismatched pairing fails
@@ -111,37 +112,23 @@ async def lifespan_hook(
     apply_seeds: bool = False,
     pool_warmup: bool = False,
     pool_warmup_size: int = 3,
+    background_migrations: bool = False,
+    background_migration_readiness: str = "block",
+    metrics_refresh_interval: float | None = 30.0,
+    opentelemetry: bool = False,
 ):
-    from dbwarden_fastapi.engines import dispose_engines
-    from dbwarden_fastapi.lifespan import _apply_seeds, _check_readiness, _warmup_pools
-    from dbwarden_fastapi.context import migration_context
-
-    try:
-        if mode != "none":
-            async with migration_context(
-                mode=mode,
-                database=database,
-                all_databases=all_databases,
-                dev=dev,
-                strict_translation=strict_translation,
-                with_backup=with_backup,
-                backup_dir=backup_dir,
-                verbose=verbose,
-                allow_in_production=allow_in_production,
-                fail_fast=fail_fast,
-                only_dev=only_dev,
-            ):
-                if readiness_gate:
-                    _check_readiness(database=database, all_databases=all_databases)
-                if apply_seeds:
-                    await _apply_seeds(database=database, all_databases=all_databases, verbose=verbose)
-                if pool_warmup:
-                    _warmup_pools(database=database, all_databases=all_databases, size=pool_warmup_size)
-                yield
-        else:
-            yield
-    finally:
-        dispose_engines()
+    async with dbwarden_lifespan(
+        app, mode=mode, database=database, all_databases=all_databases, dev=dev,
+        strict_translation=strict_translation, with_backup=with_backup,
+        backup_dir=backup_dir, verbose=verbose,
+        allow_in_production=allow_in_production, fail_fast=fail_fast,
+        only_dev=only_dev, readiness_gate=readiness_gate, apply_seeds=apply_seeds,
+        pool_warmup=pool_warmup, pool_warmup_size=pool_warmup_size,
+        background_migrations=background_migrations,
+        background_migration_readiness=background_migration_readiness,
+        metrics_refresh_interval=metrics_refresh_interval, opentelemetry=opentelemetry,
+    ):
+        yield
 
 
 
@@ -159,6 +146,7 @@ __all__ = [
     "DBWardenHealthRouter",
     "DBWardenRouter",
     "MetricsMiddleware",
+    "MetricsRefresher",
     "MetricsRouter",
     "PoolMetricsCollector",
     "QueryTracingMiddleware",
@@ -170,8 +158,10 @@ __all__ = [
     "dbwarden_lifespan",
     "dispose_engines",
     "get_session",
+    "get_tenant_session",
     "health_routes",
     "lifespan_hook",
+    "instrument_app",
     "migrate_on_startup",
     "migration_context",
     "migration_lock",
@@ -182,4 +172,6 @@ __all__ = [
     "setup",
     "sync_migration_lock",
     "sync_session_factory",
+    "TenantResolver",
+    "resolve_tenant",
 ]

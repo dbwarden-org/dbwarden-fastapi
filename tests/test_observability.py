@@ -224,6 +224,22 @@ class TestMetricsRouter:
         assert response.status_code == 200
         assert "# HELP" in response.text
 
+    def test_stale_scrape_refreshes_metrics(self, monkeypatch):
+        monkeypatch.setenv("DBWARDEN_METRICS", "true")
+        from dbwarden_fastapi.metrics import MetricsRefresher, MetricsRouter
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        app = FastAPI()
+        refresher = MetricsRefresher(interval=60)
+        app.state.dbwarden_metrics_refresher = refresher
+        app.include_router(MetricsRouter())
+        monkeypatch.setattr("dbwarden_fastapi.metrics.resolved_databases", lambda all_databases: ["primary"])
+        monkeypatch.setattr("dbwarden_fastapi.runtime.compute_pending_migrations", lambda name: 2)
+        response = TestClient(app).get("/metrics")
+        assert response.status_code == 200
+        assert refresher.last_refresh > 0
+
 
 class TestMetricsEdgeCases:
     """Edge cases for metrics."""

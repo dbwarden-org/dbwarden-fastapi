@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbwarden-fastapi"
-version = "0.1.3"
+version = "0.2.0"
 description = "FastAPI integration for dbwarden"
 readme = "README.md"
 requires-python = ">=3.12.7"
@@ -22,6 +22,8 @@ metrics = ["prometheus-client>=0.21.0"]
 redis = ["redis>=5.0.0"]
 # ClickHouse session dependencies.
 clickhouse = ["clickhouse-connect>=0.7.15"]
+# Optional FastAPI request tracing.
+opentelemetry = ["opentelemetry-instrumentation-fastapi>=0.48b0"]
 
 [project.urls]
 Homepage = "https://github.com/dbwarden-org/dbwarden-fastapi"

@@ -49,6 +49,21 @@ dbwarden plugin add dbwarden-fastapi
 
 Optional extras: `[metrics]` for Prometheus counters, `[redis]` for the distributed `migration_lock`, `[clickhouse]` for ClickHouse sessions.
 
+## Tenancy and lifecycle
+
+`get_tenant_session()` selects a registered database for each request.
+`TenantResolver(source="header")` reads `X-DBWarden-Database` by default. Use
+`source="host"`, `source="both", precedence="host"`, or `host_mapping` to map
+hostnames to registered database names. A custom sync or async callable accepting
+`Request` may also be supplied. `get_session()` also accepts a registered
+`DatabaseHandle` or `DbwardenDatabase` class.
+
+For `dbwarden_lifespan(mode="migrate")`, `background_migrations=True` supports
+`background_migration_readiness="block"` (default), `"serve"`, or `"fail"`.
+Metrics refresh during lifespan every 30 seconds by default and refreshes stale
+scrapes; set `metrics_refresh_interval=None` to disable the periodic task.
+Set `opentelemetry=True` with the `[opentelemetry]` extra to instrument FastAPI.
+
 ## Trust tier
 
 This is an **official** dbwarden plugin. Its distribution name is classified before any of its code is imported, and `dbwarden plugin add` verifies the PyPI Trusted-Publishing attestation (PEP 740) against `dbwarden-org/dbwarden-fastapi` before installing. It loads automatically once installed, with no `dbwarden plugin trust` step.

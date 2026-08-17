@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import threading
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
@@ -19,6 +20,17 @@ _CLICKHOUSE_SYNC_CLIENTS: dict[str, Any] = {}
 _LOCK = threading.Lock()
 
 
+def _database_name(database: str | Any) -> str:
+    """Accept a configured name, DatabaseHandle, or DbwardenDatabase class."""
+    if isinstance(database, str):
+        return database
+    handle = getattr(database, "handle", database)
+    name = getattr(handle, "_name", None)
+    if not isinstance(name, str):
+        raise TypeError("database must be a database name, DatabaseHandle, or DbwardenDatabase class")
+    return name
+
+
 def _to_async_url(url: str, database_type: str) -> tuple[str, str]:
     """Convert URL to async driver format.
 
@@ -26,7 +38,9 @@ def _to_async_url(url: str, database_type: str) -> tuple[str, str]:
         Tuple of (safe_cache_key, async_url).
     """
     parsed = make_url(url)
-    safe_key = parsed.render_as_string(hide_password=True)
+    # Include credentials without retaining the URL itself; different tenants
+    # must not reuse an engine when only their password differs.
+    safe_key = hashlib.sha256(url.encode()).hexdigest()
 
     if "+" in parsed.drivername:
         return safe_key, parsed.render_as_string(hide_password=False)
@@ -45,7 +59,8 @@ def _to_async_url(url: str, database_type: str) -> tuple[str, str]:
     return safe_key, full_url
 
 
-def _async_session_factory(name: str, dev: bool = False) -> async_sessionmaker[AsyncSession]:
+def _async_session_factory(name: str | Any, dev: bool = False) -> async_sessionmaker[AsyncSession]:
+    name = _database_name(name)
     with runtime_flags(dev=dev, strict_translation=False):
         config = get_database(name)
 
@@ -75,19 +90,21 @@ def _make_session_dep(name: str, dev: bool = False):
     return _dependency
 
 
-def _sync_session_factory(name: str, dev: bool = False) -> sessionmaker[Session]:
+def _sync_session_factory(name: str | Any, dev: bool = False) -> sessionmaker[Session]:
+    name = _database_name(name)
     with runtime_flags(dev=dev, strict_translation=False):
         config = get_database(name)
 
     url = config.sqlalchemy_url_sync or config.sqlalchemy_url
 
+    cache_key = hashlib.sha256(url.encode()).hexdigest()
     with _LOCK:
-        if url in _SYNC_SESSION_FACTORIES:
-            return _SYNC_SESSION_FACTORIES[url]
+        if cache_key in _SYNC_SESSION_FACTORIES:
+            return _SYNC_SESSION_FACTORIES[cache_key]
 
         engine = create_engine(url)
         factory = sessionmaker(bind=engine)
-        _SYNC_SESSION_FACTORIES[url] = factory
+        _SYNC_SESSION_FACTORIES[cache_key] = factory
         return factory
 
 
@@ -204,11 +221,15 @@ def dispose_engines() -> None:
     next ``_async_session_factory()`` or ``_sync_session_factory()`` call
     will create fresh engines automatically.
     """
-    for factory in _ASYNC_SESSION_FACTORIES.values():
+    # Detach caches first so a concurrent request always creates a fresh pool.
+    with _LOCK:
+        async_factories = list(_ASYNC_SESSION_FACTORIES.values())
+        sync_factories = list(_SYNC_SESSION_FACTORIES.values())
+        _ASYNC_SESSION_FACTORIES.clear()
+        _SYNC_SESSION_FACTORIES.clear()
+        _CLICKHOUSE_ASYNC_CLIENTS.clear()
+        _CLICKHOUSE_SYNC_CLIENTS.clear()
+    for factory in async_factories:
         _dispose_one(factory)
-    for factory in _SYNC_SESSION_FACTORIES.values():
+    for factory in sync_factories:
         _dispose_one(factory)
-    _ASYNC_SESSION_FACTORIES.clear()
-    _SYNC_SESSION_FACTORIES.clear()
-    _CLICKHOUSE_ASYNC_CLIENTS.clear()
-    _CLICKHOUSE_SYNC_CLIENTS.clear()
