@@ -117,7 +117,7 @@ def migration_routes(*, auth_mode: str = "open", api_key: str | None = None):
         error = None
         connected = True
         try:
-            from dbwarden.database.connection import get_db_connection
+            from dbwarden.connection.connection import get_db_connection
             from sqlalchemy import text
 
             with get_db_connection(db_name) as conn:

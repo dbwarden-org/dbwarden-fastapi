@@ -106,7 +106,7 @@ def _compute_migration_status(db_name: str) -> DatabaseStatus:
     status: str
 
     try:
-        from dbwarden.database.connection import get_db_connection
+        from dbwarden.connection.connection import get_db_connection
 
         with get_db_connection(db_name) as conn:
             conn.execute(__import__("sqlalchemy").text("SELECT 1"))

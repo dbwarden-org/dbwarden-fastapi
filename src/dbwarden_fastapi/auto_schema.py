@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, TypeVar, overload
 
-from dbwarden.schema._meta_reader import apply_meta
+from dbwarden.schema._meta_reader import apply_meta  # noqa: F401
 
 try:
     from schemap import SchemaConfig as _SchemaConfig, auto_schema as _schemap_auto_schema

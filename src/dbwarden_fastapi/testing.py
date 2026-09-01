@@ -72,7 +72,7 @@ async def migration_state(
         database: Target database name.
     """
     from dbwarden.config import get_database, get_multi_db_config
-    from dbwarden.database.connection import get_db_connection
+    from dbwarden.connection.connection import get_db_connection
     from sqlalchemy import text
 
     db_name = database or get_multi_db_config().default

@@ -10,7 +10,7 @@ from typing import Literal
 from sqlalchemy import text
 
 from dbwarden.config import get_database, get_multi_db_config, is_dev_mode, is_strict_translation, set_dev_mode, set_strict_translation
-from dbwarden.database.connection import get_db_connection
+from dbwarden.connection.connection import get_db_connection
 from dbwarden.engine.version import get_migration_filepaths_by_version, get_migrations_directory
 from dbwarden.repositories import check_lock, get_migrated_versions, migrations_table_exists
 
