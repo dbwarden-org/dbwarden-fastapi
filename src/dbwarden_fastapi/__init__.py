@@ -22,7 +22,7 @@ from dbwarden_fastapi.session import get_session, get_tenant_session
 from dbwarden_fastapi.tenancy import TenantResolver, resolve_tenant
 from dbwarden_fastapi.testing import migration_state, override_database
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 # The dbwarden plugin contract this package targets. Core refuses to load a
 # plugin declaring a version it does not provide, so a mismatched pairing fails

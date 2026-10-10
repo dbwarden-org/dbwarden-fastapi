@@ -9,7 +9,7 @@ description = "FastAPI integration for dbwarden"
 readme = "README.md"
 requires-python = ">=3.12.7"
 dependencies = [
-    "dbwarden>=0.16.0",
+    "dbwarden>=0.18.0",
     "fastapi>=0.110.0",
     "pydantic>=2.0",
     "schemap>=0.5.2",
